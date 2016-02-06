@@ -28,6 +28,7 @@ import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -79,7 +80,7 @@ public class AutoFeeder extends ReferenceFeeder {
 	@Element(required = false)
 	protected double feedSpeed = 1.0;
 	@Element(required = false)
-	protected int stepsPerPart = 200;
+	protected int mmPerPart = 40;
 	@Attribute(required = false)
 	protected String cartActuatorName = "Cart";
 	@Attribute(required = false)
@@ -138,21 +139,24 @@ public class AutoFeeder extends ReferenceFeeder {
 
 		pickLocation = this.location;
 
-		servoActuator.actuate(1.0); // lift servo
-		Thread.sleep(250);
-		cartActuator.actuate(feedLocation.getX());
-		servoActuator.actuate(feedLocation.getZ());
-		Thread.sleep(350);
-		wheelActuator.actuate(true);
-		double steps = stepsPerPart;
+		double steps = mmPerPart * 9.75; // roughly 39 steps for 4mm
 		if (vision.isEnabled() && visionOffset != null) {
 			I += visionOffset.getY() / 5;
 			steps += visionOffset.getY() * 10.0 + I; // adjust more as the offset gets worse
 		}
-		wheelActuator.actuate(steps);
-		Thread.sleep(100);
-		wheelActuator.actuate(false);
-		servoActuator.actuate(1.0);
+		// TODO: use feed speed to adjust speed of the wheel
+		if (steps > 0) { // only if we need to actually move stuff
+			servoActuator.actuate(1.0); // lift servo
+			Thread.sleep(200);
+			cartActuator.actuate(feedLocation.getX());
+			servoActuator.actuate(feedLocation.getZ());
+			Thread.sleep(250);
+			wheelActuator.actuate(true);
+			wheelActuator.actuate(steps);
+			Thread.sleep(100);
+			wheelActuator.actuate(false);
+			servoActuator.actuate(1.0);
+		}
 
 		if (vision.isEnabled()) {
 			Location visionLoc = getVisionLocation(head, location);
@@ -201,36 +205,49 @@ public class AutoFeeder extends ReferenceFeeder {
 		logger.debug("Perform template match.");
 
 		List<TemplateMatch> matches = visionProvider.getTemplateMatches(vision.getTemplateImage());
-		
-		System.out.println("Matches: "+matches.size());
+
+		System.out.println("Matches: " + matches.size());
 
 		Location aoiLoc = VisionUtils.getPixelLocation(camera, aoi.getX(), aoi.getY());
 		Location aoiBounds = VisionUtils.getPixelLocation(camera, aoi.getX() + aoi.getWidth(), aoi.getY() + aoi.getHeight());
-		
+
 		double xMin = Math.min(aoiLoc.getX(), aoiBounds.getX());
 		double xMax = Math.max(aoiLoc.getX(), aoiBounds.getX());
 		double yMin = Math.min(aoiLoc.getY(), aoiBounds.getY());
 		double yMax = Math.max(aoiLoc.getY(), aoiBounds.getY());
 
-		TemplateMatch bestMatch = null;
+		logger.debug("AOI: {} < x < {} : {} < y < {}", new Object[] { xMin, xMax, yMin, yMax });
 
-		for (TemplateMatch m : matches) {
-			System.out.println("M: "+m);
-			if (m.location.getX() > xMin && m.location.getX() < xMax && m.location.getY() > yMin && m.location.getY() < yMax) {
-				if (bestMatch == null)
-					bestMatch = m;
-				else if (bestMatch.location.getY() < m.location.getY())
-					bestMatch = m;
+		if (matches.size() == 0)
+			throw new Exception("No matchs found!");
+
+		TemplateMatch bestMatch = matches.get(0);
+
+		if (bestMatch.location.getX() < xMin || bestMatch.location.getX() > xMax || bestMatch.location.getY() < yMin || bestMatch.location.getY() > yMax)
+			throw new Exception("Best match not in AOI! Best Match:" + bestMatch + " AOI: x:" + xMin + "-" + xMax + " y:" + yMin + "-" + yMax);
+
+		for (Iterator<TemplateMatch> i = matches.iterator(); i.hasNext();) {
+			TemplateMatch m = i.next();
+			double space = (Math.abs(bestMatch.location.getY() - m.location.getY()) / mmPerPart) % 1;
+			if (m.location.getX() > xMin && m.location.getX() < xMax && m.location.getY() > yMin && m.location.getY() < yMax && (space < 0.05 || space > .95)) {
+				logger.debug("Keeping matchX {}, matchY {}, quality {}", new Object[] { m.location.getX(), m.location.getY(), m.score });
+			} else {
+				i.remove();
+				logger.debug("Removed matchX {}, matchY {}, quality {}", new Object[] { m.location.getX(), m.location.getY(), m.score });
 			}
 		}
-		
-		if (bestMatch == null)
-			throw new Exception("No match found!");
-			//return new Location(LengthUnit.Millimeters, 0.0, 0.0, 0.0, 0.0);
 
-		logger.debug("matchX {}, matchY {}", bestMatch.location.getX(), bestMatch.location.getY());
+		TemplateMatch yMost = bestMatch;
 
-		return bestMatch.location;
+		for (TemplateMatch m : matches)
+			if (m.location.getY() > yMost.location.getY())
+				yMost = m;
+
+		// return new Location(LengthUnit.Millimeters, 0.0, 0.0, 0.0, 0.0);
+
+		logger.debug("Using matchX {}, matchY {}, quality {}", new Object[] { yMost.location.getX(), yMost.location.getY(), yMost.score });
+
+		return yMost.location;
 	}
 
 	@Override
@@ -254,12 +271,12 @@ public class AutoFeeder extends ReferenceFeeder {
 		this.feedSpeed = feedSpeed;
 	}
 
-	public int getStepsPerPart() {
-		return stepsPerPart;
+	public int getMmPerPart() {
+		return mmPerPart;
 	}
 
-	public void setStepsPerPart(int stepsPerPart) {
-		this.stepsPerPart = stepsPerPart;
+	public void setMmPerPart(int mmPerPart) {
+		this.mmPerPart = mmPerPart;
 	}
 
 	public String getCartActuatorName() {

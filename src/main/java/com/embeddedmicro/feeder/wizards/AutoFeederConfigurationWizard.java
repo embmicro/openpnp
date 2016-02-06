@@ -83,7 +83,7 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 	private JTextField textFieldCartActuatorId;
 	private JTextField textFieldWheelActuatorId;
 	private JTextField textFieldServoActuatorId;
-	private JTextField textStepsPerPart;
+	private JTextField textMmPerPart;
 	private JPanel panelGeneral;
 	private JPanel panelVision;
 	private JPanel panelLocations;
@@ -155,12 +155,12 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 
 		// TODO ADD OTHER ACTUATORS
 
-		JLabel lblStepsPerPart = new JLabel("Steps Per Part");
-		panelGeneral.add(lblStepsPerPart, "2, 10, right, default");
+		JLabel lblMmPerPart = new JLabel("MM Per Part");
+		panelGeneral.add(lblMmPerPart, "2, 10, right, default");
 
-		textStepsPerPart = new JTextField();
-		panelGeneral.add(textStepsPerPart, "4, 10");
-		textStepsPerPart.setColumns(5);
+		textMmPerPart = new JTextField();
+		panelGeneral.add(textMmPerPart, "4, 10");
+		textMmPerPart.setColumns(5);
 
 		panelLocations = new JPanel();
 		panelFields.add(panelLocations);
@@ -369,7 +369,7 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 		addWrappedBinding(feeder, "cartActuatorName", textFieldCartActuatorId, "text");
 		addWrappedBinding(feeder, "wheelActuatorName", textFieldWheelActuatorId, "text");
 		addWrappedBinding(feeder, "servoActuatorName", textFieldServoActuatorId, "text");
-		addWrappedBinding(feeder, "stepsPerPart", textStepsPerPart, "text", intConverter);
+		addWrappedBinding(feeder, "mmPerPart", textMmPerPart, "text", intConverter);
 
 		MutableLocationProxy feedLocation = new MutableLocationProxy();
 		bind(UpdateStrategy.READ_WRITE, feeder, "feedLocation", feedLocation, "location");
@@ -389,7 +389,7 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 		ComponentDecorators.decorateWithAutoSelect(textFieldCartActuatorId);
 		ComponentDecorators.decorateWithAutoSelect(textFieldWheelActuatorId);
 		ComponentDecorators.decorateWithAutoSelect(textFieldServoActuatorId);
-		ComponentDecorators.decorateWithAutoSelect(textStepsPerPart);
+		ComponentDecorators.decorateWithAutoSelect(textMmPerPart);
 		ComponentDecorators.decorateWithAutoSelectAndLengthConversion(textFieldFeedX);
 		ComponentDecorators.decorateWithAutoSelectAndLengthConversion(textFieldFeedZ);
 		ComponentDecorators.decorateWithAutoSelect(textFieldAoiX);

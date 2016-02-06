@@ -60,6 +60,7 @@ import org.slf4j.LoggerFactory;
 public class OpenCvVisionProvider implements VisionProvider {
     private final static Logger logger = LoggerFactory
             .getLogger(OpenCvVisionProvider.class);
+    private int debugCount = 0;
 
     static {
         nu.pattern.OpenCV.loadShared();
@@ -121,8 +122,8 @@ public class OpenCvVisionProvider implements VisionProvider {
         double maxVal = mmr.maxVal;
         
         // TODO: Externalize?
-        double threshold = 0.7f;
-        double corr = 0.85f;
+        double threshold = 0.6f;
+        double corr = 0.8f;
 
         double rangeMin = Math.max(threshold, corr * maxVal);
         double rangeMax = maxVal;
@@ -163,10 +164,12 @@ public class OpenCvVisionProvider implements VisionProvider {
             }
         });
         
-        saveDebugImage("template", templateMat);
-        saveDebugImage("camera", imageMat);
-        saveDebugImage("result", resultMat);
-        saveDebugImage("debug", debugMat);
+        
+        saveDebugImage(debugCount+"_template", templateMat);
+        saveDebugImage(debugCount+"_camera", imageMat);
+        saveDebugImage(debugCount+"_result", resultMat);
+        saveDebugImage(debugCount+"_debug", debugMat);
+        debugCount++;
                 
         return matches;
     }

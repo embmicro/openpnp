@@ -58,6 +58,7 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 		sendCommand("G0 Z15.0");
 		dwell();
 		sendCommand("G90");
+		Thread.sleep(100);
 
 		super.home(head);
 

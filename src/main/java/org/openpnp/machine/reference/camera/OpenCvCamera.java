@@ -86,8 +86,8 @@ public class OpenCvCamera extends ReferenceCamera implements Runnable {
 	    }
 		try {
 		    Mat mat = new Mat();
-		    if (!fg.read(mat)) {
-		        return null;
+		    while (!fg.read(mat)) {
+		        //return null;
 		    }
             if (calibration.isEnabled()) {
                 mat = undistort(mat);

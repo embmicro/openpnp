@@ -51,6 +51,8 @@ import org.simpleframework.xml.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.embeddedmicro.feeder.AutoFeeder;
+
 public class ReferenceMachine extends AbstractMachine {
 	private static Logger logger = LoggerFactory.getLogger(ReferenceMachine.class);
 
@@ -150,6 +152,7 @@ public class ReferenceMachine extends AbstractMachine {
         l.add(ReferenceTrayFeeder.class);
 		l.add(ReferenceDragFeeder.class);
 		l.add(ReferenceTubeFeeder.class);
+		l.add(AutoFeeder.class);
 		l.addAll(registeredFeederClasses);
 		return l;
 	}

@@ -161,7 +161,7 @@ public class AutoFeeder extends ReferenceFeeder {
 		if (vision.isEnabled()) {
 			Location visionLoc = getVisionLocation(head, location);
 			visionOffset = pickLocation.subtract(visionLoc);
-			pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, null);
+			pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() + visionLoc.getRotation());
 
 			logger.debug("final visionOffsets " + visionOffset);
 		}

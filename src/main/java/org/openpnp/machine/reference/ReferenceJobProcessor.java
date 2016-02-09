@@ -304,14 +304,15 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 				}
 
 				try {
-					camera.moveTo(placementLocation.derive(null, null, Double.NaN, null), 1.0);
-					Thread.sleep(750);
-				} catch (Exception e) {
-					fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-					return;
-				}
-			}
-		}
+                    camera.moveTo(placementLocation.derive(null, null, Double.NaN, null), placement.getPart().getSpeed());
+                    Thread.sleep(750);
+                }
+                catch (Exception e) {
+                    fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+                    return;
+                }
+            }
+        }
 
 		fireDetailedStatusUpdated("Job complete.");
 
@@ -321,16 +322,19 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 
 	// TODO: Should not bail if there are no fids on the board. Figure out
 	// the UI for that.
-	protected void checkFiducials() throws Exception {
-		FiducialLocator locator = new FiducialLocator();
-		for (BoardLocation boardLocation : job.getBoardLocations()) {
-			if (!boardLocation.isCheckFiducials()) {
-				continue;
-			}
-			Location location = locator.locateBoard(boardLocation);
-			boardLocation.setLocation(location);
-		}
-	}
+    protected void checkFiducials() throws Exception {
+        FiducialLocator locator = new FiducialLocator();
+        for (BoardLocation boardLocation : job.getBoardLocations()) {
+            if (!boardLocation.isEnabled()) {
+                continue;
+            }
+            if (!boardLocation.isCheckFiducials()) {
+                continue;
+            }
+            Location location = locator.locateBoard(boardLocation);
+            boardLocation.setLocation(location);
+        }
+    }
 
 	protected Location performBottomVision(Machine machine, Part part, Nozzle nozzle) throws Exception {
 		// TODO: I think this stuff actually belongs in VisionProvider but
@@ -510,13 +514,14 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 		}
 
 		try {
-			nozzle.moveToSafeZ(1.0);
-		} catch (Exception e) {
-			fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-			return false;
-		}
-
-		return true;
+            nozzle.moveToSafeZ(placement.getPart().getSpeed());
+        }
+        catch (Exception e) {
+            fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+            return false;
+        }
+        
+        return true;
 	}
 
 	protected boolean place(Nozzle nozzle, BoardLocation bl, Location placementLocation, Placement placement) {
@@ -526,13 +531,14 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 			return false;
 		}
 
-		// Move the nozzle to the placement Location at safe Z
-		try {
-			nozzle.moveTo(placementLocation.derive(null, null, Double.NaN, null), 1.0);
-		} catch (Exception e) {
-			fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-			return false;
-		}
+        // Move the nozzle to the placement Location at safe Z
+        try {
+            nozzle.moveTo(placementLocation.derive(null, null, Double.NaN, null), placement.getPart().getSpeed());
+        }
+        catch (Exception e) {
+            fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+            return false;
+        }
 
 		fireDetailedStatusUpdated(String.format("Move to placement location Z at (%s).", placementLocation));
 
@@ -540,13 +546,14 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 			return false;
 		}
 
-		// Lower the nozzle.
-		try {
-			nozzle.moveTo(placementLocation, 1.0);
-		} catch (Exception e) {
-			fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-			return false;
-		}
+        // Lower the nozzle.
+        try {
+            nozzle.moveTo(placementLocation, placement.getPart().getSpeed());
+        }
+        catch (Exception e) {
+            fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+            return false;
+        }
 
 		fireDetailedStatusUpdated(String.format("Request part place. at (X %2.3f, Y %2.3f, Z %2.3f, C %2.3f).", placementLocation.getX(), placementLocation.getY(),
 				placementLocation.getZ(), placementLocation.getRotation()));

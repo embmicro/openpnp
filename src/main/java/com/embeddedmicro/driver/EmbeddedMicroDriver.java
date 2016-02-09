@@ -48,17 +48,17 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 	@Override
 	public void home(ReferenceHead head) throws Exception {
 		// move Z stepper into an acceptable spot
-		sendCommand("G91");
-		for (int i = 0; i < 10; i++) {
-			sendCommand("M84");
-			Thread.sleep(250);
-			sendCommand("G0 Z-3.0");
-			dwell();
-		}
-		sendCommand("G0 Z15.0");
-		dwell();
-		sendCommand("G90");
-		Thread.sleep(100);
+//		sendCommand("G91");
+//		for (int i = 0; i < 10; i++) {
+//			sendCommand("M84");
+//			Thread.sleep(250);
+//			sendCommand("G0 Z-3.0");
+//			dwell();
+//		}
+//		sendCommand("G0 Z15.0");
+//		dwell();
+//		sendCommand("G90");
+//		Thread.sleep(100);
 
 		super.home(head);
 
@@ -171,8 +171,8 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 
 				currentSettings = cStep << 4 | 1 << 3 | wStep << 1 | 1 << 6; // cart motor on, wheel motor off, servo on
 				write(SETTINGS, currentSettings);
-				write(WHEEL_DELAY, 0x18000); // default speed
-				write(CART_DELAY, 0x6000);
+				write(WHEEL_DELAY, 0x20000); // default speed
+				write(CART_DELAY, 0x5000);
 				write(SERVO_POS, SERVO_MAX); // lift wheel
 			} else {
 				write(SETTINGS, 0); // turn off motors

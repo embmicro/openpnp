@@ -118,8 +118,11 @@ public class OpenCvVisionProvider implements VisionProvider {
 		}
 
 		ArrayList<Thread> threads = new ArrayList<>();
+		
+		final double maxRotation = 10.0;
+		final double stepSize = 1.0;
 
-		for (double angle = -5.0; angle < 5.0; angle += 0.5) {
+		for (double angle = -maxRotation; angle <= maxRotation; angle += stepSize) {
 			final double ang = angle;
 			Thread t = new Thread() {
 				public void run() {
@@ -157,7 +160,7 @@ public class OpenCvVisionProvider implements VisionProvider {
 		}
 
 		// TODO: Externalize?
-		double threshold = 0.6f;
+		double threshold = 0.65f;
 		double corr = 0.85f;
 
 		double rangeMin = Math.max(threshold, corr * maxVal);

@@ -21,15 +21,15 @@
 
 package com.embeddedmicro.feeder;
 
-import java.awt.Point;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import javax.imageio.ImageIO;
 import javax.swing.Action;
@@ -56,7 +56,6 @@ import org.simpleframework.xml.core.Persist;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.embeddedmicro.driver.EmbeddedMicroDriver;
 import com.embeddedmicro.feeder.wizards.AutoFeederConfigurationWizard;
 
 /**
@@ -94,6 +93,29 @@ public class AutoFeeder extends ReferenceFeeder {
 
 	private double I = 0.0;
 
+	private static Object actuatorLock = new Object();
+
+	private static class PreFeedJob {
+		public AutoFeeder feeder;
+		public Nozzle nozzle;
+
+		public PreFeedJob(AutoFeeder feeder, Nozzle nozzle) {
+			this.feeder = feeder;
+			this.nozzle = nozzle;
+		}
+	}
+
+	private static class Result {
+		public Exception e;
+
+		public Result(Exception e) {
+			this.e = e;
+		}
+	}
+
+	private static BlockingQueue<PreFeedJob> feedJobs = new LinkedBlockingQueue<>();
+	private BlockingQueue<Result> feedResults = new LinkedBlockingQueue<>();
+
 	/*
 	 * visionOffset contains the difference between where the part was expected to be and where it is. Subtracting these offsets from the pickLocation produces the correct
 	 * pick location. Likewise, subtracting the offsets from the feedStart and feedEndLocations should produce the correct feed locations.
@@ -106,6 +128,72 @@ public class AutoFeeder extends ReferenceFeeder {
 			pickLocation = location;
 		}
 		return pickLocation;
+	}
+
+	private static Thread preFeedThread = new Thread() {
+		@Override
+		public void run() {
+			while (true) {
+				PreFeedJob job = null;
+				try {
+					job = feedJobs.take();
+				} catch (InterruptedException e) {
+					continue;
+				}
+				Exception exc = null;
+				try {
+					job.feeder.preFeedAction(job.nozzle);
+				} catch (Exception e) {
+					exc = e;
+				}
+				try {
+					job.feeder.feedResults.put(new Result(exc));
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+	};
+
+	static {
+		preFeedThread.start();
+	}
+
+	private void preFeedAction(Nozzle nozzle) throws Exception {
+		Head head = nozzle.getHead();
+
+		Actuator wheelActuator = head.getActuatorByName(wheelActuatorName);
+		Actuator servoActuator = head.getActuatorByName(servoActuatorName);
+		Actuator cartActuator = head.getActuatorByName(cartActuatorName);
+
+		if (wheelActuator == null || servoActuator == null || cartActuator == null)
+			return;
+
+		synchronized (actuatorLock) {
+			double steps = mmPerPart * 9.75; // roughly 39 steps for 4mm
+			if (vision.isEnabled() && visionOffset != null) {
+				I += visionOffset.getY() * 2.0;
+				steps += visionOffset.getY() * 10.0 + I; // adjust more as the offset gets worse
+			}
+
+			// TODO: use feed speed to adjust speed of the wheel
+			if (steps > 0) { // only if we need to actually move stuff
+				servoActuator.actuate(1.0); // lift servo
+				Thread.sleep(200);
+				cartActuator.actuate(feedLocation.getX());
+				servoActuator.actuate(feedLocation.getZ());
+				Thread.sleep(250);
+				wheelActuator.actuate(true);
+				wheelActuator.actuate(steps);
+				Thread.sleep(100);
+				wheelActuator.actuate(false);
+				servoActuator.actuate(1.0);
+			}
+		}
+	}
+
+	@Override
+	public void preFeed(Nozzle nozzle) {
+		feedJobs.add(new PreFeedJob(this, nozzle));
 	}
 
 	@Override
@@ -139,29 +227,38 @@ public class AutoFeeder extends ReferenceFeeder {
 
 		pickLocation = this.location;
 
-		double steps = mmPerPart * 9.75; // roughly 39 steps for 4mm
-		if (vision.isEnabled() && visionOffset != null) {
-			I += visionOffset.getY() / 5;
-			steps += visionOffset.getY() * 10.0 + I; // adjust more as the offset gets worse
-		}
-		// TODO: use feed speed to adjust speed of the wheel
-		if (steps > 0) { // only if we need to actually move stuff
-			servoActuator.actuate(1.0); // lift servo
-			Thread.sleep(200);
-			cartActuator.actuate(feedLocation.getX());
-			servoActuator.actuate(feedLocation.getZ());
-			Thread.sleep(250);
-			wheelActuator.actuate(true);
-			wheelActuator.actuate(steps);
-			Thread.sleep(100);
-			wheelActuator.actuate(false);
-			servoActuator.actuate(1.0);
-		}
+		Result result = feedResults.take();
+
+		if (result.e != null)
+			throw result.e;
 
 		if (vision.isEnabled()) {
-			Location visionLoc = getVisionLocation(head, location);
-			visionOffset = pickLocation.subtract(visionLoc);
-			pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() + visionLoc.getRotation());
+			int attempts = 0;
+
+			while (true) {
+				try {
+					Location visionLoc = getVisionLocation(head, location);
+					visionOffset = pickLocation.subtract(visionLoc);
+					pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() + visionLoc.getRotation());
+					break;
+				} catch (Exception e) {
+					synchronized (actuatorLock) {
+						attempts++;
+						if (attempts > 3)
+							throw e;
+						servoActuator.actuate(1.0); // lift servo
+						Thread.sleep(200);
+						cartActuator.actuate(feedLocation.getX());
+						servoActuator.actuate(feedLocation.getZ());
+						Thread.sleep(250);
+						wheelActuator.actuate(true);
+						wheelActuator.actuate(mmPerPart * 9.75 * (attempts + 1));
+						Thread.sleep(100);
+						wheelActuator.actuate(false);
+						servoActuator.actuate(1.0);
+					}
+				}
+			}
 
 			logger.debug("final visionOffsets " + visionOffset);
 		}

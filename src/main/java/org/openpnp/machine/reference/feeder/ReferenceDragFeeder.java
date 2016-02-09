@@ -464,4 +464,10 @@ public class ReferenceDragFeeder extends ReferenceFeeder {
 			this.templateImageBottomRight = templateImageBottomRight;
 		}
 	}
+
+	@Override
+	public void preFeed(Nozzle nozzle) {
+		// TODO Auto-generated method stub
+		
+	}
 }

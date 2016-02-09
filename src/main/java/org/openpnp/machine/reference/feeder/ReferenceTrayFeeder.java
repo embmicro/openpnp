@@ -164,5 +164,11 @@ public class ReferenceTrayFeeder extends ReferenceFeeder {
     public Action[] getPropertySheetHolderActions() {
         // TODO Auto-generated method stub
         return null;
-    }  
+    }
+
+	@Override
+	public void preFeed(Nozzle nozzle) {
+		// TODO Auto-generated method stub
+		
+	}  
 }

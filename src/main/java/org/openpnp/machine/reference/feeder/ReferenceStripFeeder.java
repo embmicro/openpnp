@@ -403,7 +403,13 @@ public class ReferenceStripFeeder extends ReferenceFeeder {
     public Action[] getPropertySheetHolderActions() {
         // TODO Auto-generated method stub
         return null;
-    }  
+    }
+
+	@Override
+	public void preFeed(Nozzle nozzle) {
+		// TODO Auto-generated method stub
+		
+	}  
 }
 
 // this code left here in case we want to use it in the future. it is for 

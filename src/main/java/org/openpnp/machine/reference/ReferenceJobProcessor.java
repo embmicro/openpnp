@@ -262,57 +262,82 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 
 		jobPlanner.setJob(job);
 
-		Set<PlacementSolution> solutions;
-		while ((solutions = jobPlanner.getNextPlacementSolutions(head)) != null) {
+		Set<PlacementSolution> solutions = jobPlanner.getNextPlacementSolutions(head);
+		for (PlacementSolution solution : solutions)
+			solution.feeder.preFeed(solution.nozzle);
+
+		while (solutions != null) {
+			Set<PlacementSolution> nextSolutions = jobPlanner.getNextPlacementSolutions(head);
+
 			for (PlacementSolution solution : solutions) {
+				BoardLocation bl = solution.boardLocation;
+				Part part = solution.placement.getPart();
 				Feeder feeder = solution.feeder;
+				Placement placement = solution.placement;
+				Nozzle nozzle = solution.nozzle;
+				NozzleTip nozzleTip = solution.nozzleTip;
 
 				firePartProcessingStarted(solution.boardLocation, solution.placement);
 
-				try {
-					fireDetailedStatusUpdated(String.format("Move to pick location, safe Z at (%s).", feeder.getPickLocation()));
-				} catch (Exception e) {
-					fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+				if (!changeNozzleTip(nozzle, nozzleTip)) {
 					return;
 				}
 
-				if (!shouldJobProcessingContinue()) {
+				if (!nozzle.getNozzleTip().canHandle(part)) {
+					fireJobEncounteredError(JobError.PickError, "Selected nozzle tip is not compatible with part");
 					return;
 				}
 
-				try {
-					camera.moveTo(feeder.getPickLocation().derive(null, null, Double.NaN, null), 1.0);
-					Thread.sleep(750);
-				} catch (Exception e) {
-					fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+				if (!pick(nozzle, feeder, bl, placement)) {
 					return;
 				}
 			}
 
+			// preFeed the next batch of parts
+			if (nextSolutions != null)
+				for (PlacementSolution solution : nextSolutions)
+					solution.feeder.preFeed(solution.nozzle);
+
 			// TODO: a lot of the event fires are broken
 			for (PlacementSolution solution : solutions) {
+				Nozzle nozzle = solution.nozzle;
 				BoardLocation bl = solution.boardLocation;
 				Placement placement = solution.placement;
+				Part part = placement.getPart();
 
-				Location placementLocation = placement.getLocation();
-				placementLocation = Utils2D.calculateBoardPlacementLocation(bl, placementLocation);
-
-				fireDetailedStatusUpdated(String.format("Move to placement location, safe Z at (%s).", placementLocation));
+				fireDetailedStatusUpdated(String.format("Perform bottom vision"));
 
 				if (!shouldJobProcessingContinue()) {
 					return;
 				}
 
+				Location bottomVisionOffsets;
 				try {
-                    camera.moveTo(placementLocation.derive(null, null, Double.NaN, null), placement.getPart().getSpeed());
-                    Thread.sleep(750);
-                }
-                catch (Exception e) {
-                    fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-                    return;
-                }
-            }
-        }
+					bottomVisionOffsets = performBottomVision(machine, part, nozzle);
+				} catch (Exception e) {
+					fireJobEncounteredError(JobError.PartError, e.getMessage());
+					return;
+				}
+
+				Location placementLocation = placement.getLocation();
+				if (bottomVisionOffsets != null) {
+					placementLocation = placementLocation.subtractWithRotation(bottomVisionOffsets);
+				}
+				placementLocation = Utils2D.calculateBoardPlacementLocation(bl, placementLocation);
+
+				// Update the placementLocation with the proper Z value. This is
+				// the distance to the top of the board plus the height of
+				// the part.
+				Location boardLocation = bl.getLocation().convertToUnits(placementLocation.getUnits());
+				double partHeight = part.getHeight().convertToUnits(placementLocation.getUnits()).getValue();
+				placementLocation = placementLocation.derive(null, null, boardLocation.getZ() + partHeight, null);
+
+				if (!place(nozzle, bl, placementLocation, placement)) {
+					return;
+				}
+			}
+			solutions = nextSolutions;
+		}
 
 		fireDetailedStatusUpdated("Job complete.");
 
@@ -322,19 +347,19 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 
 	// TODO: Should not bail if there are no fids on the board. Figure out
 	// the UI for that.
-    protected void checkFiducials() throws Exception {
-        FiducialLocator locator = new FiducialLocator();
-        for (BoardLocation boardLocation : job.getBoardLocations()) {
-            if (!boardLocation.isEnabled()) {
-                continue;
-            }
-            if (!boardLocation.isCheckFiducials()) {
-                continue;
-            }
-            Location location = locator.locateBoard(boardLocation);
-            boardLocation.setLocation(location);
-        }
-    }
+	protected void checkFiducials() throws Exception {
+		FiducialLocator locator = new FiducialLocator();
+		for (BoardLocation boardLocation : job.getBoardLocations()) {
+			if (!boardLocation.isEnabled()) {
+				continue;
+			}
+			if (!boardLocation.isCheckFiducials()) {
+				continue;
+			}
+			Location location = locator.locateBoard(boardLocation);
+			boardLocation.setLocation(location);
+		}
+	}
 
 	protected Location performBottomVision(Machine machine, Part part, Nozzle nozzle) throws Exception {
 		// TODO: I think this stuff actually belongs in VisionProvider but
@@ -514,14 +539,13 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 		}
 
 		try {
-            nozzle.moveToSafeZ(placement.getPart().getSpeed());
-        }
-        catch (Exception e) {
-            fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-            return false;
-        }
-        
-        return true;
+			nozzle.moveToSafeZ(placement.getPart().getSpeed());
+		} catch (Exception e) {
+			fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+			return false;
+		}
+
+		return true;
 	}
 
 	protected boolean place(Nozzle nozzle, BoardLocation bl, Location placementLocation, Placement placement) {
@@ -531,14 +555,13 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 			return false;
 		}
 
-        // Move the nozzle to the placement Location at safe Z
-        try {
-            nozzle.moveTo(placementLocation.derive(null, null, Double.NaN, null), placement.getPart().getSpeed());
-        }
-        catch (Exception e) {
-            fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-            return false;
-        }
+		// Move the nozzle to the placement Location at safe Z
+		try {
+			nozzle.moveTo(placementLocation.derive(null, null, Double.NaN, null), placement.getPart().getSpeed());
+		} catch (Exception e) {
+			fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+			return false;
+		}
 
 		fireDetailedStatusUpdated(String.format("Move to placement location Z at (%s).", placementLocation));
 
@@ -546,14 +569,13 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 			return false;
 		}
 
-        // Lower the nozzle.
-        try {
-            nozzle.moveTo(placementLocation, placement.getPart().getSpeed());
-        }
-        catch (Exception e) {
-            fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
-            return false;
-        }
+		// Lower the nozzle.
+		try {
+			nozzle.moveTo(placementLocation, placement.getPart().getSpeed());
+		} catch (Exception e) {
+			fireJobEncounteredError(JobError.MachineMovementError, e.getMessage());
+			return false;
+		}
 
 		fireDetailedStatusUpdated(String.format("Request part place. at (X %2.3f, Y %2.3f, Z %2.3f, C %2.3f).", placementLocation.getX(), placementLocation.getY(),
 				placementLocation.getZ(), placementLocation.getRotation()));

@@ -409,6 +409,12 @@ public class ReferenceStripFeeder extends ReferenceFeeder {
 	public void preFeed(Nozzle nozzle) {
 		// TODO Auto-generated method stub
 		
+	}
+
+	@Override
+	public void postFeed() {
+		// TODO Auto-generated method stub
+		
 	}  
 }
 

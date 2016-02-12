@@ -5,6 +5,7 @@ import org.openpnp.machine.openbuilds.OpenBuildsDriver;
 import org.openpnp.machine.reference.ReferenceActuator;
 import org.openpnp.machine.reference.ReferenceHead;
 import org.simpleframework.xml.Attribute;
+import org.simpleframework.xml.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,8 +33,9 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 	@Attribute(required = false)
 	protected int cartSteps = 4;
 	@Attribute(required = false)
-	protected int wheelSteps = 8;
-
+	protected int wheelSteps = 32;
+	@Attribute(required = false)
+	protected double stepsPerMm = 39;
 	@Attribute(required = false)
 	protected String cartActuatorName = "Cart";
 	@Attribute(required = false)
@@ -93,6 +95,14 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 			} catch (InterruptedException e) {
 			}
 	}
+	
+	public double getStepsPerMm() {
+		return stepsPerMm;
+	}
+
+	public void setStepsPerMm(double stepsPerMm) {
+		this.stepsPerMm = stepsPerMm;
+	}
 
 	@Override
 	public void actuate(ReferenceActuator actuator, boolean on) throws Exception {
@@ -116,7 +126,7 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 			waitCart();
 			cartPosition = (int) value;
 		} else if (name.equals(wheelActuatorName)) {
-			write(WHEEL_STEPS, (int) value);
+			write(WHEEL_STEPS, (int) (value * stepsPerMm));
 			waitWheel();
 		} else if (name.equals(servoActuatorName)) {
 			int servoPos = (int) (value * (SERVO_MAX - SERVO_MIN) + SERVO_MIN);
@@ -139,13 +149,17 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 			return 2;
 		case 8:
 			return 3;
+		case 16:
+			return 4;
+		case 32:
+			return 5;
 		default:
 			return -1;
 		}
 	}
 
 	private void enableServo(boolean enable) throws SerialPortException {
-		setSettingsBit(enable, 6);
+		setSettingsBit(enable, 8);
 	}
 
 	private void enableWheel(boolean enable) throws SerialPortException {
@@ -153,7 +167,7 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 	}
 
 	private void enableCart(boolean enable) throws SerialPortException {
-		setSettingsBit(enable, 3);
+		setSettingsBit(enable, 4);
 	}
 
 	private void setSettingsBit(boolean set, int bit) throws SerialPortException {
@@ -169,9 +183,9 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 				int wStep = Math.max(stepsToSetting(wheelSteps), 0);
 				int cStep = Math.max(stepsToSetting(cartSteps), 0);
 
-				currentSettings = cStep << 4 | 1 << 3 | wStep << 1 | 1 << 6; // cart motor on, wheel motor off, servo on
+				currentSettings = cStep << 5 | 1 << 4 | wStep << 1 | 1 << 8; // cart motor on, wheel motor off, servo on
 				write(SETTINGS, currentSettings);
-				write(WHEEL_DELAY, 0x20000); // default speed
+				write(WHEEL_DELAY, 0x40000); // default speed
 				write(CART_DELAY, 0x5000);
 				write(SERVO_POS, SERVO_MAX); // lift wheel
 			} else {

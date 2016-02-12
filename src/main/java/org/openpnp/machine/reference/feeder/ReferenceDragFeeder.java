@@ -470,4 +470,10 @@ public class ReferenceDragFeeder extends ReferenceFeeder {
 		// TODO Auto-generated method stub
 		
 	}
+
+	@Override
+	public void postFeed() {
+		// TODO Auto-generated method stub
+		
+	}
 }

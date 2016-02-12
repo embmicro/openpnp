@@ -156,6 +156,7 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 				if (!pick(nozzle, feeder, bl, placement)) {
 					return;
 				}
+				feeder.postFeed();
 			}
 
 			// preFeed the next batch of parts
@@ -291,6 +292,7 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
 				if (!pick(nozzle, feeder, bl, placement)) {
 					return;
 				}
+				feeder.postFeed();
 			}
 
 			// preFeed the next batch of parts

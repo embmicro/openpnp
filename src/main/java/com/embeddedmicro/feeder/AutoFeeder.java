@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 
 import javax.imageio.ImageIO;
 import javax.swing.Action;
@@ -105,16 +106,11 @@ public class AutoFeeder extends ReferenceFeeder {
 		}
 	}
 
-	private static class Result {
-		public Exception e;
-
-		public Result(Exception e) {
-			this.e = e;
-		}
-	}
-
-	private static BlockingQueue<PreFeedJob> feedJobs = new LinkedBlockingQueue<>();
-	private BlockingQueue<Result> feedResults = new LinkedBlockingQueue<>();
+	private static BlockingQueue<PreFeedJob> feedJobs = new LinkedBlockingQueue<>(); // queue of pre-feed jobs
+	private Exception feedResult; // if the preFeed thows an exception this will be non-null
+	private Semaphore waitFeed = new Semaphore(1); // sema for waiting on multiple pre-feed requests to the same feeder
+	private Semaphore waitPreFeed = new Semaphore(0); // sema for waiting on the pre-feed operation
+	private int queuedFeed = 0; // counting number of queued feeds
 
 	/*
 	 * visionOffset contains the difference between where the part was expected to be and where it is. Subtracting these offsets from the pickLocation produces the correct
@@ -133,23 +129,26 @@ public class AutoFeeder extends ReferenceFeeder {
 	private static Thread preFeedThread = new Thread() {
 		@Override
 		public void run() {
-			while (true) {
+			while (true) { // run forever
 				PreFeedJob job = null;
 				try {
-					job = feedJobs.take();
+					job = feedJobs.take(); // get next job, blocks if empty
+					logger.debug("waitFeed.acquire() for feeder " + job.feeder.getId());
+					job.feeder.waitFeed.acquire(); // wait for feeder to be idle
+					logger.debug("waitFeed acquired for feeder " + job.feeder.getId());
 				} catch (InterruptedException e) {
 					continue;
 				}
 				Exception exc = null;
 				try {
-					job.feeder.preFeedAction(job.nozzle);
+					job.feeder.preFeedAction(job.nozzle); // perform
+															// pre-feed
 				} catch (Exception e) {
 					exc = e;
 				}
-				try {
-					job.feeder.feedResults.put(new Result(exc));
-				} catch (InterruptedException e) {
-				}
+				job.feeder.feedResult = exc; // save any exception
+				logger.debug("waitPreFeed.release() for feeder " + job.feeder.getId());
+				job.feeder.waitPreFeed.release(); // signal pre-feed done
 			}
 		}
 	};
@@ -169,10 +168,11 @@ public class AutoFeeder extends ReferenceFeeder {
 			return;
 
 		synchronized (actuatorLock) {
-			double steps = mmPerPart * 9.75; // roughly 39 steps for 4mm
+			double steps = mmPerPart;
 			if (vision.isEnabled() && visionOffset != null) {
-				I += visionOffset.getY() * 2.0;
-				steps += visionOffset.getY() * 10.0 + I; // adjust more as the offset gets worse
+				I += visionOffset.getY() / 5;
+				I = Math.min(Math.abs(I), mmPerPart) * Math.signum(I);
+				steps += visionOffset.getY() + I; // adjust more as the offset gets worse
 			}
 
 			// TODO: use feed speed to adjust speed of the wheel
@@ -193,6 +193,8 @@ public class AutoFeeder extends ReferenceFeeder {
 
 	@Override
 	public void preFeed(Nozzle nozzle) {
+		logger.debug("preFeed() for " + getId());
+		queuedFeed++; // add queued feed
 		feedJobs.add(new PreFeedJob(this, nozzle));
 	}
 
@@ -227,36 +229,54 @@ public class AutoFeeder extends ReferenceFeeder {
 
 		pickLocation = this.location;
 
-		Result result = feedResults.take();
-
-		if (result.e != null)
-			throw result.e;
+		if (queuedFeed > 0) { // was the pre-feed thread started?
+			queuedFeed--;
+			logger.debug("waitPreFeed.acquire() for " + getId());
+			waitPreFeed.acquire();
+			logger.debug("waitPreFeed acquired for " + getId());
+			if (feedResult != null)
+				throw feedResult;
+		} else { // pre-feed not called, need to pre-feed
+			logger.debug("Performing pre-feed without queue for " + getId());
+			preFeedAction(nozzle);
+		}
 
 		if (vision.isEnabled()) {
-			int attempts = 0;
+			try {
+				updateVision(head, location);
+			} catch (Exception e) {
+				synchronized (actuatorLock) {
+					int attempts = 0;
 
-			while (true) {
-				try {
-					Location visionLoc = getVisionLocation(head, location);
-					visionOffset = pickLocation.subtract(visionLoc);
-					pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() + visionLoc.getRotation());
-					break;
-				} catch (Exception e) {
-					synchronized (actuatorLock) {
-						attempts++;
-						if (attempts > 3)
-							throw e;
-						servoActuator.actuate(1.0); // lift servo
-						Thread.sleep(200);
-						cartActuator.actuate(feedLocation.getX());
-						servoActuator.actuate(feedLocation.getZ());
-						Thread.sleep(250);
-						wheelActuator.actuate(true);
-						wheelActuator.actuate(mmPerPart * 9.75 * (attempts + 1));
-						Thread.sleep(100);
-						wheelActuator.actuate(false);
-						servoActuator.actuate(1.0);
+					servoActuator.actuate(1.0); // lift servo
+					Thread.sleep(200);
+					cartActuator.actuate(feedLocation.getX());
+					servoActuator.actuate(feedLocation.getZ());
+					Thread.sleep(250);
+					wheelActuator.actuate(true);
+
+					while (true) {
+						double steps = mmPerPart;
+						if (I > 0)
+							steps += I;
+						wheelActuator.actuate(steps);
+
+						try {
+							getVisionLocation(head, location);
+							I += steps/4;
+							I = Math.min(Math.abs(I), mmPerPart) * Math.signum(I);
+							break;
+						} catch (Exception e2) {
+							attempts++;
+							if (attempts > 5)
+								throw e2;
+						}
 					}
+
+					wheelActuator.actuate(false);
+					servoActuator.actuate(1.0);
+
+					updateVision(head, location);
 				}
 			}
 
@@ -264,6 +284,19 @@ public class AutoFeeder extends ReferenceFeeder {
 		}
 
 		logger.debug("Modified pickLocation {}", pickLocation);
+
+	}
+
+	private void updateVision(Head head, Location location) throws Exception {
+		Location visionLoc = getVisionLocation(head, location);
+		visionOffset = pickLocation.subtract(visionLoc);
+		pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() + visionLoc.getRotation());
+	}
+
+	@Override
+	public void postFeed() {
+		logger.debug("Releasing waitFeed for " + getId());
+		waitFeed.release();
 	}
 
 	// TODO: Throw an Exception if vision fails.
@@ -320,8 +353,8 @@ public class AutoFeeder extends ReferenceFeeder {
 
 		TemplateMatch bestMatch = matches.get(0);
 
-		if (bestMatch.location.getX() < xMin || bestMatch.location.getX() > xMax || bestMatch.location.getY() < yMin || bestMatch.location.getY() > yMax)
-			throw new Exception("Best match not in AOI! Best Match:" + bestMatch + " AOI: x:" + xMin + "-" + xMax + " y:" + yMin + "-" + yMax);
+		// if (bestMatch.location.getX() < xMin || bestMatch.location.getX() > xMax || bestMatch.location.getY() < yMin || bestMatch.location.getY() > yMax)
+		// throw new Exception("Best match not in AOI! Best Match:" + bestMatch + " AOI: x:" + xMin + "-" + xMax + " y:" + yMin + "-" + yMax);
 
 		for (Iterator<TemplateMatch> i = matches.iterator(); i.hasNext();) {
 			TemplateMatch m = i.next();
@@ -333,6 +366,9 @@ public class AutoFeeder extends ReferenceFeeder {
 				logger.debug("Removed matchX {}, matchY {}, quality {}", new Object[] { m.location.getX(), m.location.getY(), m.score });
 			}
 		}
+
+		if (matches.size() == 0)
+			throw new Exception("No matchs found in AOI!");
 
 		TemplateMatch yMost = bestMatch;
 
@@ -484,7 +520,6 @@ public class AutoFeeder extends ReferenceFeeder {
 			});
 		}
 
-		@SuppressWarnings("unused")
 		@Persist
 		private void persist() throws IOException {
 			if (templateImageDirty) {

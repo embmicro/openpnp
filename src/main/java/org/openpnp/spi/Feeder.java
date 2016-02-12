@@ -75,4 +75,6 @@ public interface Feeder extends Identifiable, Named, WizardConfigurable, Propert
 	public void feed(Nozzle nozzle) throws Exception;
 	
 	public void preFeed(Nozzle nozzle);
+	
+	public void postFeed();
 }

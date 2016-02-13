@@ -88,6 +88,10 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 	private JPanel panelVision;
 	private JPanel panelLocations;
 	private JCheckBox chckbxVisionEnabled;
+	private JTextField textFieldMaxRotation;
+	private JTextField textFieldRotationStepSize;
+	private JTextField textFieldVisionThreshold;
+	private JTextField textFieldVisionCorrelation;
 	private JPanel panelVisionEnabled;
 	private JPanel panelTemplate;
 	private JLabel labelTemplateImage;
@@ -174,7 +178,7 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 
 		JLabel lblX = new JLabel("X");
 		panelLocations.add(lblX, "4, 4");
-		
+
 		JLabel lblZ = new JLabel("Z");
 		panelLocations.add(lblZ, "8, 4");
 
@@ -184,19 +188,19 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 		textFieldFeedX = new JTextField();
 		panelLocations.add(textFieldFeedX, "4, 6");
 		textFieldFeedX.setColumns(8);
-		
+
 		JButton btnX = new JButton(Icons.feed);
 		panelLocations.add(btnX, "6, 6");
-		
+
 		btnX.addActionListener(new ActionListener() {
-			
+
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				Nozzle nozzle = MainFrame.machineControlsPanel.getSelectedNozzle();
 				Head head = nozzle.getHead();
 				Actuator servoActuator = head.getActuatorByName(feeder.getServoActuatorName());
 				Actuator cartActuator = head.getActuatorByName(feeder.getCartActuatorName());
-				
+
 				if (servoActuator == null) {
 					System.err.println(String.format("No Actuator found with name %s on feed Head %s", feeder.getServoActuatorName(), head.getName()));
 					return;
@@ -205,7 +209,7 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 					System.err.println(String.format("No Actuator found with name %s on feed Head %s", feeder.getCartActuatorName(), head.getName()));
 					return;
 				}
-				
+
 				try {
 					servoActuator.actuate(1.0);
 					Thread.sleep(200);
@@ -213,17 +217,17 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 				} catch (Exception e1) {
 					System.err.println("Failed to actuate feeder!");
 				}
-				
+
 			}
 		});
 
 		textFieldFeedZ = new JTextField();
 		panelLocations.add(textFieldFeedZ, "8, 6");
 		textFieldFeedZ.setColumns(8);
-		
+
 		JButton btnZ = new JButton(Icons.feed);
 		panelLocations.add(btnZ, "10, 6");
-		
+
 		btnZ.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(MouseEvent e) {
@@ -240,7 +244,7 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 					System.err.println("Failed to actuate feeder!");
 				}
 			}
-			
+
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				Nozzle nozzle = MainFrame.machineControlsPanel.getSelectedNozzle();
@@ -354,6 +358,42 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 		cancelSelectTemplateImageAction.setEnabled(false);
 		cancelSelectAoiAction.setEnabled(false);
 
+		JPanel panelRotation = new JPanel();
+		panelVision.add(panelRotation);
+
+		panelRotation.setLayout(
+				new FormLayout(new ColumnSpec[] { FormSpecs.RELATED_GAP_COLSPEC, FormSpecs.DEFAULT_COLSPEC, FormSpecs.RELATED_GAP_COLSPEC, FormSpecs.DEFAULT_COLSPEC, },
+						new RowSpec[] { FormSpecs.RELATED_GAP_ROWSPEC, FormSpecs.DEFAULT_ROWSPEC, FormSpecs.RELATED_GAP_ROWSPEC, FormSpecs.DEFAULT_ROWSPEC,
+								FormSpecs.RELATED_GAP_ROWSPEC, FormSpecs.DEFAULT_ROWSPEC, FormSpecs.RELATED_GAP_ROWSPEC, FormSpecs.DEFAULT_ROWSPEC, }));
+
+		JLabel lblMaxRotation = new JLabel("Max Rotation");
+		panelRotation.add(lblMaxRotation, "2, 2, right, default");
+
+		textFieldMaxRotation = new JTextField();
+		panelRotation.add(textFieldMaxRotation, "4, 2");
+		textFieldMaxRotation.setColumns(5);
+
+		JLabel lblRotationStepSize = new JLabel("Rotation Step Size");
+		panelRotation.add(lblRotationStepSize, "2, 4, right, default");
+
+		textFieldRotationStepSize = new JTextField();
+		panelRotation.add(textFieldRotationStepSize, "4, 4");
+		textFieldRotationStepSize.setColumns(5);
+
+		JLabel lblVisionThreshold = new JLabel("Match Threshold");
+		panelRotation.add(lblVisionThreshold, "2, 6, right, default");
+
+		textFieldVisionThreshold = new JTextField();
+		panelRotation.add(textFieldVisionThreshold, "4, 6");
+		textFieldVisionThreshold.setColumns(5);
+
+		JLabel lblVisionCorrelation = new JLabel("Match Correlation");
+		panelRotation.add(lblVisionCorrelation, "2, 8, right, default");
+
+		textFieldVisionCorrelation = new JTextField();
+		panelRotation.add(textFieldVisionCorrelation, "4, 8");
+		textFieldVisionCorrelation.setColumns(5);
+
 		contentPanel.add(panelFields);
 	}
 
@@ -385,6 +425,11 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 		addWrappedBinding(feeder, "vision.areaOfInterest.width", textFieldAoiWidth, "text", intConverter);
 		addWrappedBinding(feeder, "vision.areaOfInterest.height", textFieldAoiHeight, "text", intConverter);
 
+		addWrappedBinding(feeder, "maxRotation", textFieldMaxRotation, "text", doubleConverter);
+		addWrappedBinding(feeder, "rotationStepSize", textFieldRotationStepSize, "text", doubleConverter);
+		addWrappedBinding(feeder, "visionThreshold", textFieldVisionThreshold, "text", doubleConverter);
+		addWrappedBinding(feeder, "visionCorrelation", textFieldVisionCorrelation, "text", doubleConverter);
+
 		ComponentDecorators.decorateWithAutoSelectAndLengthConversion(textFieldFeedRate);
 		ComponentDecorators.decorateWithAutoSelect(textFieldCartActuatorId);
 		ComponentDecorators.decorateWithAutoSelect(textFieldWheelActuatorId);
@@ -396,6 +441,10 @@ public class AutoFeederConfigurationWizard extends AbstractReferenceFeederConfig
 		ComponentDecorators.decorateWithAutoSelect(textFieldAoiY);
 		ComponentDecorators.decorateWithAutoSelect(textFieldAoiWidth);
 		ComponentDecorators.decorateWithAutoSelect(textFieldAoiHeight);
+		ComponentDecorators.decorateWithAutoSelect(textFieldMaxRotation);
+		ComponentDecorators.decorateWithAutoSelect(textFieldRotationStepSize);
+		ComponentDecorators.decorateWithAutoSelect(textFieldVisionThreshold);
+		ComponentDecorators.decorateWithAutoSelect(textFieldVisionCorrelation);
 	}
 
 	@SuppressWarnings("serial")

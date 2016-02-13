@@ -67,13 +67,15 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 		enableCart(true);
 		enableServo(true);
 
+		int oldDelay = read(CART_DELAY);
 		write(SERVO_POS, SERVO_MAX); // lift servo
+		write(CART_DELAY, 0x10000);
 		write(CART_STEPS, Integer.MIN_VALUE); // move left
 		waitCart();
 		write(CART_STEPS, 100);
 		waitCart();
-		int oldDelay = read(CART_DELAY);
-		write(CART_DELAY, 0x20000);
+		
+		write(CART_DELAY, 0x40000);
 		write(CART_STEPS, -400);
 		waitCart();
 		write(CART_DELAY, oldDelay);
@@ -185,8 +187,8 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 
 				currentSettings = cStep << 5 | 1 << 4 | wStep << 1 | 1 << 8; // cart motor on, wheel motor off, servo on
 				write(SETTINGS, currentSettings);
-				write(WHEEL_DELAY, 0x40000); // default speed
-				write(CART_DELAY, 0x5000);
+				write(WHEEL_DELAY, 0x28000); // default speed
+				write(CART_DELAY, 0x2000);
 				write(SERVO_POS, SERVO_MAX); // lift wheel
 			} else {
 				write(SETTINGS, 0); // turn off motors

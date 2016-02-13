@@ -89,6 +89,14 @@ public class AutoFeeder extends ReferenceFeeder {
 	protected String servoActuatorName = "Servo";
 	@Element(required = false)
 	protected Vision vision = new Vision();
+	@Element(required = false)
+	protected double maxRotation = 0.0;
+	@Element(required = false)
+	protected double rotationStepSize = 1.0;
+	@Element(required = false)
+	protected double visionThreshold = 0.65;
+	@Element(required = false)
+	protected double visionCorrelation = 0.85;
 
 	protected Location pickLocation;
 
@@ -263,13 +271,16 @@ public class AutoFeeder extends ReferenceFeeder {
 
 						try {
 							getVisionLocation(head, location);
-							I += steps/4;
+							I += steps / 4;
 							I = Math.min(Math.abs(I), mmPerPart) * Math.signum(I);
 							break;
 						} catch (Exception e2) {
 							attempts++;
-							if (attempts > 5)
+							if (attempts > 5) {
+								wheelActuator.actuate(false);
+								servoActuator.actuate(1.0);
 								throw e2;
+							}
 						}
 					}
 
@@ -290,7 +301,7 @@ public class AutoFeeder extends ReferenceFeeder {
 	private void updateVision(Head head, Location location) throws Exception {
 		Location visionLoc = getVisionLocation(head, location);
 		visionOffset = pickLocation.subtract(visionLoc);
-		pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() + visionLoc.getRotation());
+		pickLocation = pickLocation.derive(visionLoc.getX(), visionLoc.getY(), null, pickLocation.getRotation() - visionLoc.getRotation());
 	}
 
 	@Override
@@ -334,7 +345,7 @@ public class AutoFeeder extends ReferenceFeeder {
 		// Perform the template match
 		logger.debug("Perform template match.");
 
-		List<TemplateMatch> matches = visionProvider.getTemplateMatches(vision.getTemplateImage());
+		List<TemplateMatch> matches = visionProvider.getTemplateMatches(vision.getTemplateImage(), maxRotation, rotationStepSize, visionThreshold, visionCorrelation);
 
 		System.out.println("Matches: " + matches.size());
 
@@ -359,7 +370,7 @@ public class AutoFeeder extends ReferenceFeeder {
 		for (Iterator<TemplateMatch> i = matches.iterator(); i.hasNext();) {
 			TemplateMatch m = i.next();
 			double space = (Math.abs(bestMatch.location.getY() - m.location.getY()) / mmPerPart) % 1;
-			if (m.location.getX() > xMin && m.location.getX() < xMax && m.location.getY() > yMin && m.location.getY() < yMax && (space < 0.05 || space > .95)) {
+			if (m.location.getX() > xMin && m.location.getX() < xMax && m.location.getY() > yMin && m.location.getY() < yMax && (space < 0.10 || space > .90)) {
 				logger.debug("Keeping matchX {}, matchY {}, quality {}", new Object[] { m.location.getX(), m.location.getY(), m.score });
 			} else {
 				i.remove();
@@ -491,6 +502,38 @@ public class AutoFeeder extends ReferenceFeeder {
 	public Action[] getPropertySheetHolderActions() {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	public double getMaxRotation() {
+		return maxRotation;
+	}
+
+	public void setMaxRotation(double maxRotation) {
+		this.maxRotation = maxRotation;
+	}
+
+	public double getRotationStepSize() {
+		return rotationStepSize;
+	}
+
+	public void setRotationStepSize(double rotationStepSize) {
+		this.rotationStepSize = rotationStepSize;
+	}
+
+	public double getVisionThreshold() {
+		return visionThreshold;
+	}
+
+	public void setVisionThreshold(double visionThreshold) {
+		this.visionThreshold = visionThreshold;
+	}
+
+	public double getVisionCorrelation() {
+		return visionCorrelation;
+	}
+
+	public void setVisionCorrelation(double visionCorrelation) {
+		this.visionCorrelation = visionCorrelation;
 	}
 
 	public static class Vision {

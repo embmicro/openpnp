@@ -89,6 +89,10 @@ public class OpenCvVisionProvider implements VisionProvider {
 		return image;
 	}
 
+	public List<TemplateMatch> getTemplateMatches(BufferedImage template) {
+		return getTemplateMatches(template, 0, 0, 0.65, 0.85);
+	}
+
 	/**
 	 * Attempt to find matches of the given template within the current camera frame. Matches are returned as TemplateMatch objects which contain a Location in Camera
 	 * coordinates. The results are sorted best score to worst score.
@@ -96,7 +100,7 @@ public class OpenCvVisionProvider implements VisionProvider {
 	 * @param template
 	 * @return
 	 */
-	public List<TemplateMatch> getTemplateMatches(BufferedImage template) {
+	public List<TemplateMatch> getTemplateMatches(BufferedImage template, double maxRotation, double rotStepSize, double threshold, double corr) {
 		// TODO: ROI
 		BufferedImage image = camera.capture();
 
@@ -108,7 +112,11 @@ public class OpenCvVisionProvider implements VisionProvider {
 		Mat templateMat = OpenCvUtils.toMat(template);
 		Mat imageMat = OpenCvUtils.toMat(image);
 
+		int result_cols = imageMat.cols() - templateMat.cols() + 1;
+		int result_rows = imageMat.rows() - templateMat.rows() + 1;
+
 		org.opencv.core.Point src_center = new org.opencv.core.Point(imageMat.cols() / 2.0, imageMat.rows() / 2.0);
+		org.opencv.core.Point res_center = new org.opencv.core.Point(result_cols / 2.0, result_rows / 2.0);
 
 		HashMap<Double, Mat> resultMat = new HashMap<>();
 
@@ -118,39 +126,42 @@ public class OpenCvVisionProvider implements VisionProvider {
 		}
 
 		ArrayList<Thread> threads = new ArrayList<>();
-		
-		final double maxRotation = 10.0;
-		final double stepSize = 1.0;
 
-		for (double angle = -maxRotation; angle <= maxRotation; angle += stepSize) {
-			final double ang = angle;
-			Thread t = new Thread() {
-				public void run() {
-					Mat rotMat = Imgproc.getRotationMatrix2D(src_center, ang, 1.0);
-					Mat antiRotMat = Imgproc.getRotationMatrix2D(src_center, -ang, 1.0);
-					Mat rotImgMat = new Mat();
-					Imgproc.warpAffine(imageMat, rotImgMat, rotMat, imageMat.size());
+		if (maxRotation > 0) {
+			for (double angle = -maxRotation; angle <= maxRotation; angle += rotStepSize) {
+				final double ang = angle;
+				Thread t = new Thread() {
+					public void run() {
+						Mat rotMat = Imgproc.getRotationMatrix2D(src_center, ang, 1.0);
+						Mat antiRotMat = Imgproc.getRotationMatrix2D(res_center, -ang, 1.0);
+						Mat rotImgMat = new Mat();
+						Imgproc.warpAffine(imageMat, rotImgMat, rotMat, imageMat.size());
 
-					Mat rotResultMat = new Mat();
+						Mat rotResultMat = new Mat();
 
-					Imgproc.matchTemplate(rotImgMat, templateMat, rotResultMat, Imgproc.TM_CCOEFF_NORMED);
+						Imgproc.matchTemplate(rotImgMat, templateMat, rotResultMat, Imgproc.TM_CCOEFF_NORMED);
 
-					Mat rMat = new Mat();
-					Imgproc.warpAffine(rotResultMat, rMat, antiRotMat, rotResultMat.size());
-					synchronized (resultMat) {
-						resultMat.put(ang, rMat);
+						Mat rMat = new Mat();
+						Imgproc.warpAffine(rotResultMat, rMat, antiRotMat, rotResultMat.size());
+						synchronized (resultMat) {
+							resultMat.put(ang, rMat);
+						}
 					}
-				}
-			};
-			t.start();
-			threads.add(t);
-		}
-
-		for (Thread t : threads)
-			try {
-				t.join();
-			} catch (InterruptedException e) {
+				};
+				t.start();
+				threads.add(t);
 			}
+
+			for (Thread t : threads)
+				try {
+					t.join();
+				} catch (InterruptedException e) {
+				}
+		} else {
+			Mat rMat = new Mat();
+			Imgproc.matchTemplate(imageMat, templateMat, rMat, Imgproc.TM_CCOEFF_NORMED);
+			resultMat.put(0.0, rMat);
+		}
 
 		double maxVal = Double.MIN_VALUE;
 
@@ -158,10 +169,6 @@ public class OpenCvVisionProvider implements VisionProvider {
 			MinMaxLocResult mmr = Core.minMaxLoc(m);
 			maxVal = Math.max(mmr.maxVal, maxVal);
 		}
-
-		// TODO: Externalize?
-		double threshold = 0.65f;
-		double corr = 0.85f;
 
 		double rangeMin = Math.max(threshold, corr * maxVal);
 		double rangeMax = maxVal;
@@ -193,16 +200,22 @@ public class OpenCvVisionProvider implements VisionProvider {
 			}
 		});
 
-		saveDebugImage(debugCount + "_template", templateMat);
-		saveDebugImage(debugCount + "_camera", imageMat);
-		saveDebugImage(debugCount + "_result_0", resultMat.get(new Double(0.0)));
-		saveDebugImage(debugCount + "_debug", debugMat);
-		debugCount++;
+		if (logger.isDebugEnabled()) {
+			saveDebugImage(debugCount + "_template", templateMat);
+			saveDebugImage(debugCount + "_camera", imageMat);
+			for (Map.Entry<Double, Mat> entry : resultMat.entrySet())
+				saveDebugImage(debugCount + "_result_" + entry.getKey(), entry.getValue());
+			saveDebugImage(debugCount + "_debug", debugMat);
+			debugCount++;
+		}
 
 		return matches;
 	}
 
 	private void mergeNearbyMatches(List<TemplateMatch> matches, double mergeDist) {
+		if (matches.size() <= 1)
+			return;
+		
 		ArrayList<ArrayList<TemplateMatch>> groups = new ArrayList<ArrayList<TemplateMatch>>();
 		for (int i = 0; i < matches.size() - 1; i++) {
 			TemplateMatch cur = matches.get(i);
@@ -343,7 +356,7 @@ public class OpenCvVisionProvider implements VisionProvider {
 		// part's rotation at 0.
 		nozzle.moveTo(camera.getLocation().derive(null, null, null, Double.NaN), 1.0);
 		// Grab an image.
-		//BufferedImage image = camera.settleAndCapture();
+		// BufferedImage image = camera.settleAndCapture();
 		// TODO: Do OpenCV magic
 		// Return the offsets. Make sure to convert them to real units instead
 		// of pixels. Use camera.getUnitsPerPixel().

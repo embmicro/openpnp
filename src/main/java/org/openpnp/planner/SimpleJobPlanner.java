@@ -30,7 +30,7 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
     @Attribute(required = false)
     private String placeHolder;
     
-    protected Set<PlacementSolution> solutions = new LinkedHashSet<PlacementSolution>();
+    protected Set<PlacementSolution> solutions = new LinkedHashSet<>();
     
     @Override
     public void setJob(Job job) {
@@ -71,10 +71,13 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
      */
     @Override
     public synchronized Set<PlacementSolution> getNextPlacementSolutions(Head head) {
-        Set<PlacementSolution> results = new LinkedHashSet<PlacementSolution>();
+        Set<PlacementSolution> results = new LinkedHashSet<>();
         Machine machine = Configuration.get().getMachine();
         for (Nozzle nozzle : head.getNozzles()) {
             for (WeightedPlacementSolution solution : getWeightedSolutions(machine, nozzle)) {
+                // Check to make sure a prior solution in this loop didn't
+                // already consume the solution. This is the "do not conflict"
+                // part from the above comment.
                 if (solutions.contains(solution.originalSolution)) {
                     results.add((PlacementSolution) solution);
                     solutions.remove(solution.originalSolution);
@@ -86,9 +89,9 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
         // in the job then we failed to either find a nozzletip or feeder
         // for a placement. We return the solutions as they are, which includes
         // nulls for feeder and nozzle.
-        // TODO: It would be better if we filled in what we *could* find
-        // so that the processor will give the user the correct error.
-        // Or we could just throw the error here.
+        // With the recent change of allowing null feeders and nozzle tips
+        // in the planned results this shouldn't ever actually happen, but
+        // it's here as a safety catch.
         if (results.size() == 0 && solutions.size() > 0) {
             return solutions;
         }
@@ -96,7 +99,7 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
     }
     
     protected List<WeightedPlacementSolution> getWeightedSolutions(Machine machine, Nozzle nozzle) {
-        List<WeightedPlacementSolution> weightedSolutions = new ArrayList<WeightedPlacementSolution>();
+        List<WeightedPlacementSolution> weightedSolutions = new ArrayList<>();
         for (PlacementSolution solution : solutions) {
             Part part = solution.placement.getPart();
             if (part == null) {
@@ -104,6 +107,8 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
             }
             Set<NozzleTip> compatibleNozzleTips = getCompatibleNozzleTips(nozzle, part);
             Set<Feeder> compatibleFeeders = getCompatibleFeeders(machine, nozzle, part);
+            compatibleNozzleTips.add(null);
+            compatibleFeeders.add(null);
             for (NozzleTip nozzleTip : compatibleNozzleTips) {
                 for (Feeder feeder : compatibleFeeders) {
                     WeightedPlacementSolution weightedSolution = new WeightedPlacementSolution(
@@ -115,9 +120,18 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
                             feeder);
                     weightedSolution.weight = 1;
                     weightedSolution.originalSolution = solution;
-                    if (nozzle.getNozzleTip() != nozzleTip) {
+                    
+                    if (nozzleTip == null) {
+                        weightedSolution.weight += 1000;
+                    }
+                    else if (nozzle.getNozzleTip() != nozzleTip) {
                         weightedSolution.weight++;
                     }
+                    
+                    if (feeder == null) {
+                        weightedSolution.weight += 1000;
+                    }
+                    
                     weightedSolutions.add(weightedSolution);
                 }
             }
@@ -127,7 +141,7 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
     }
     
     private static Set<NozzleTip> getCompatibleNozzleTips(Nozzle nozzle, Part part) {
-        Set<NozzleTip> nozzleTips = new HashSet<NozzleTip>();
+        Set<NozzleTip> nozzleTips = new HashSet<>();
         for (NozzleTip nozzleTip : nozzle.getNozzleTips()) {
             if (nozzleTip.canHandle(part)) {
                 nozzleTips.add(nozzleTip);
@@ -137,7 +151,7 @@ public class SimpleJobPlanner extends AbstractJobPlanner {
     }
     
     private static Set<Feeder> getCompatibleFeeders(Machine machine, Nozzle nozzle, Part part) {
-        Set<Feeder> feeders = new HashSet<Feeder>();
+        Set<Feeder> feeders = new HashSet<>();
         for (Feeder feeder : machine.getFeeders()) {
             if (feeder.getPart() == part && feeder.isEnabled()) {
                 feeders.add(feeder);

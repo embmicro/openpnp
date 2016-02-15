@@ -127,13 +127,13 @@ public class CSVParseDemo {
 //////////////////////////////////////////////////////////
 //	if((str.indexOf("val")!=-1||str.indexOf("comment"))&&str.indexOf("val")!=-1&&str.indexOf("val")!=-1&&
 
-	static final String Refs[] = { "Designator", "designator", "Part", "part", "Component", "component", "RefDes" , "Ref" };
-	static final String Vals[] = { "Value", "value", "Val", "val", "Comment" , "comment" }; 
-	static final String Packs[] = { "Footprint", "footprint","Package", "package", "Pattern" , "pattern" };
-	static final String Xs[] = { "X", "x", "X (mm)", "x (mm)", "Ref X", "ref x" , "PosX" }; 
-	static final String Ys[] = { "Y", "x", "Y (mm)", "x (mm)", "Ref Y", "ref x" , "PosY" }; 
-	static final String Rots[] = { "Rotation", "rotation", "Rot", "rot" , "Rotate" };
-	static final String TBs[] = {  "Layer", "layer", "Side", "side", "TB" , "tb" };
+	private static final String Refs[] = { "Designator", "designator", "Part", "part", "Component", "component", "RefDes" , "Ref" };
+	private static final String Vals[] = { "Value", "value", "Val", "val", "Comment" , "comment" };
+	private static final String Packs[] = { "Footprint", "footprint","Package", "package", "Pattern" , "pattern" };
+	private static final String Xs[] = { "X", "x", "X (mm)", "x (mm)", "Ref X", "ref x" , "PosX" };
+	private static final String Ys[] = { "Y", "x", "Y (mm)", "x (mm)", "Ref Y", "ref x" , "PosY" };
+	private static final String Rots[] = { "Rotation", "rotation", "Rot", "rot" , "Rotate" };
+	private static final String TBs[] = {  "Layer", "layer", "Side", "side", "TB" , "tb" };
 //////////////////////////////////////////////////////////
 	static private int Ref=-1,Val=-1,Pack=-1,X=-1,Y=-1,Rot=-1,TB=-1,Len=0; 
 	static private char comma=',';
@@ -238,7 +238,7 @@ for ( String as[]; (as = csvParser.getLine()) != null; )
 
 	private static List<Placement> parseFile(File file, boolean createMissingParts) throws Exception {
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-		ArrayList<Placement> placements = new ArrayList<Placement>();
+		ArrayList<Placement> placements = new ArrayList<>();
 		String line;
 
 		for(int i=0;i++<10&&(line = reader.readLine()) != null;) {
@@ -425,7 +425,7 @@ for ( String as[]; (as = csvParser.getLine()) != null; )
 		    logger.debug("Parsing "+textFieldTopFile.getText()+" CSV FIle");
 	            topFile = new File(textFieldTopFile.getText());
 	            board = new Board();
-	            List<Placement> placements = new ArrayList<Placement>();
+	            List<Placement> placements = new ArrayList<>();
 	            try {
 	                if (topFile.exists()) {
 	                    placements.addAll(parseFile(topFile, chckbxCreateMissingParts.isSelected()));

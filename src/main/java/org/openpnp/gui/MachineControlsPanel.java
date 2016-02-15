@@ -176,7 +176,7 @@ public class MachineControlsPanel extends JPanel {
 	
 	private void setUnits(LengthUnit units) {
 		if (units == LengthUnit.Millimeters) {
-			Hashtable<Integer, JLabel> incrementsLabels = new Hashtable<Integer, JLabel>();
+			Hashtable<Integer, JLabel> incrementsLabels = new Hashtable<>();
 			incrementsLabels.put(1, new JLabel("0.01"));
 			incrementsLabels.put(2, new JLabel("0.1"));
 			incrementsLabels.put(3, new JLabel("1.0"));
@@ -185,7 +185,7 @@ public class MachineControlsPanel extends JPanel {
 			sliderIncrements.setLabelTable(incrementsLabels);
 		}
 		else if (units == LengthUnit.Inches) {
-			Hashtable<Integer, JLabel> incrementsLabels = new Hashtable<Integer, JLabel>();
+			Hashtable<Integer, JLabel> incrementsLabels = new Hashtable<>();
 			incrementsLabels.put(1, new JLabel("0.001"));
 			incrementsLabels.put(2, new JLabel("0.01"));
 			incrementsLabels.put(3, new JLabel("0.1"));
@@ -215,7 +215,6 @@ public class MachineControlsPanel extends JPanel {
 	public void setEnabled(boolean enabled) {
 		super.setEnabled(enabled);
 		homeAction.setEnabled(enabled);
-		goToZeroAction.setEnabled(enabled);
 		jogControlsPanel.setEnabled(enabled);
 		targetCameraAction.setEnabled(enabled);
 		targetToolAction.setEnabled(enabled);
@@ -487,24 +486,16 @@ public class MachineControlsPanel extends JPanel {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			setEnabled(false);
-			Configuration.get().getMachine().submit(new Callable<Void>() {
-				@Override
-				public Void call() throws Exception {
-					Configuration.get().getMachine().setEnabled(false);
-					return null;
-				}
-			}, new FutureCallback<Void>() {
-				@Override
-				public void onSuccess(Void result) {
-					setEnabled(true);
-				}
-
-				@Override
-				public void onFailure(Throwable t) {
-					MessageBoxes.errorBox(MachineControlsPanel.this, "Stop Failed", t.getMessage());
-					setEnabled(true);
-				}
-			}, true);
+			new Thread(() -> {
+	            try {
+	                Configuration.get().getMachine().setEnabled(false);
+	                setEnabled(true);
+	            }
+	            catch (Exception t) {
+	                MessageBoxes.errorBox(MachineControlsPanel.this, "Stop Failed", t.getMessage());
+	                setEnabled(true);
+	            }
+			}).start();
 		}
 	};
 	
@@ -512,42 +503,22 @@ public class MachineControlsPanel extends JPanel {
 	private Action startMachineAction = new AbstractAction("START") {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
-			setEnabled(false);
-			Configuration.get().getMachine().submit(new Callable<Void>() {
-				@Override
-				public Void call() throws Exception {
-					Configuration.get().getMachine().setEnabled(true);
-					return null;
-				}
-			}, new FutureCallback<Void>() {
-				@Override
-				public void onSuccess(Void result) {
-					setEnabled(true);
-				}
-
-				@Override
-				public void onFailure(Throwable t) {
-					MessageBoxes.errorBox(MachineControlsPanel.this, "Start Failed", t.getMessage());
-					setEnabled(true);
-				}
-			}, true);
+            setEnabled(false);
+            new Thread(() -> {
+                try {
+                    Configuration.get().getMachine().setEnabled(true);
+                    setEnabled(true);
+                }
+                catch (Exception t) {
+                    MessageBoxes.errorBox(MachineControlsPanel.this, "Start Failed", t.getMessage());
+                    setEnabled(true);
+                }
+            }).start();
 		}
 	};
 	
 	@SuppressWarnings("serial")
-	public Action goToZeroAction = new AbstractAction("Go To Zero") {
-		@Override
-		public void actionPerformed(ActionEvent arg0) {
-			UiUtils.submitUiMachineTask(() -> {
-				selectedNozzle.moveToSafeZ(1.0);
-				// Move to 0, 0, 0, 0.
-				selectedNozzle.moveTo(new Location(LengthUnit.Millimeters, 0, 0, 0, 0), 1.0);
-			});
-		}
-	};
-	
-	@SuppressWarnings("serial")
-	public Action homeAction = new AbstractAction("Home") {
+	public Action homeAction = new AbstractAction("Home", Icons.home) {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			UiUtils.submitUiMachineTask(() -> {

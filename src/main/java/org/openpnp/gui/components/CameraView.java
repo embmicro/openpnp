@@ -105,7 +105,7 @@ public class CameraView extends JComponent implements CameraListener {
 	 */
 	private int maximumFps;
 
-	private LinkedHashMap<Object, Reticle> reticles = new LinkedHashMap<Object, Reticle>();
+	private LinkedHashMap<Object, Reticle> reticles = new LinkedHashMap<>();
 
 	private JPopupMenu popupMenu;
 
@@ -181,7 +181,7 @@ public class CameraView extends JComponent implements CameraListener {
 	
 	private boolean showImageInfo;
 	
-	private List<CameraViewActionListener> actionListeners = new ArrayList<CameraViewActionListener>();
+	private List<CameraViewActionListener> actionListeners = new ArrayList<>();
 	
 	private CameraViewFilter cameraViewFilter;
 	
@@ -732,7 +732,7 @@ public class CameraView extends JComponent implements CameraListener {
 		g2d.setStroke(new BasicStroke(1.0f));
 		g2d.setFont(g2d.getFont().deriveFont(12.0f));
 		String[] lines = text.split("\n");
-		List<TextLayout> textLayouts = new ArrayList<TextLayout>();
+		List<TextLayout> textLayouts = new ArrayList<>();
 		int textWidth = 0, textHeight = 0;
 		for (String line : lines) {
 			TextLayout textLayout = new TextLayout(line, g2d.getFont(),
@@ -782,7 +782,7 @@ public class CameraView extends JComponent implements CameraListener {
         g2d.setStroke(new BasicStroke(1.0f));
         g2d.setFont(g2d.getFont().deriveFont(12.0f));
         String[] lines = text.split("\n");
-        List<TextLayout> textLayouts = new ArrayList<TextLayout>();
+        List<TextLayout> textLayouts = new ArrayList<>();
         int textWidth = 0, textHeight = 0;
         for (String line : lines) {
             TextLayout textLayout = new TextLayout(line, g2d.getFont(),
@@ -1095,8 +1095,8 @@ public class CameraView extends JComponent implements CameraListener {
 
         // Find the difference in X and Y from the center of the image
         // to the mouse click.
-        double offsetX = (scaledWidth / 2) - (x - imageX);
-        double offsetY = (scaledHeight / 2) - (y - imageY);
+        double offsetX = (scaledWidth / 2.0D) - (x - imageX);
+        double offsetY = (scaledHeight / 2.0D) - (y - imageY);
 
         // Invert the X so that the offsets represent a bottom left to
         // top right coordinate system.
@@ -1133,8 +1133,8 @@ public class CameraView extends JComponent implements CameraListener {
 
         // Find the difference in X and Y from the center of the image
         // to the mouse click.
-        double offsetX = (scaledWidth / 2) - (x - imageX);
-        double offsetY = (scaledHeight / 2) - (y - imageY) + 1;
+        double offsetX = (scaledWidth / 2.0D) - (x - imageX);
+        double offsetY = (scaledHeight / 2.0D) - (y - imageY) + 1;
 
         // Invert the X so that the offsets represent a bottom left to
         // top right coordinate system.

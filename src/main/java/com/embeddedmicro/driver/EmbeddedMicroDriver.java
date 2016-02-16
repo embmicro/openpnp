@@ -49,18 +49,13 @@ public class EmbeddedMicroDriver extends OpenBuildsDriver {
 
 	@Override
 	public void home(ReferenceHead head) throws Exception {
-		// move Z stepper into an acceptable spot
-//		sendCommand("G91");
-//		for (int i = 0; i < 10; i++) {
-//			sendCommand("M84");
-//			Thread.sleep(250);
-//			sendCommand("G0 Z-3.0");
-//			dwell();
-//		}
-//		sendCommand("G0 Z15.0");
-//		dwell();
-//		sendCommand("G90");
-//		Thread.sleep(100);
+		// We "home" Z by turning off the steppers, allowing the
+        // spring to pull the nozzle back up to home.
+        sendCommand("M84");
+        // And call that zero
+        sendCommand("G92 Z0");
+        // And wait a tick just to let things settle down
+        Thread.sleep(250);
 
 		super.home(head);
 

@@ -480,7 +480,7 @@ public class ReferenceJobProcessor extends AbstractJobProcessor {
         // End NozzleTip Changer
 	}
 	
-	protected boolean pick(Nozzle nozzle, Feeder feeder, BoardLocation bl, Placement placement) {
+	protected boolean feed(Nozzle nozzle, Feeder feeder) throws Exception {
         fireDetailedStatusUpdated(String.format("Move nozzle %s to Safe-Z at (%s).", nozzle.getName(), nozzle.getLocation()));        
 
         if (!shouldJobProcessingContinue()) {

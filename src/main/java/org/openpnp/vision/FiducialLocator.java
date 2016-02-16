@@ -236,10 +236,10 @@ public class FiducialLocator {
         
         Rectangle2D bounds = shape.getBounds2D();
         
-        // Make the image 50% bigger than the shape. This gives better
+        // Make the image 100% bigger than the shape. This gives better
         // recognition performance because it allows some border around the edges.
-        double width = bounds.getWidth() * 1.5;
-        double height = bounds.getHeight() * 1.5;
+        double width = bounds.getWidth() * 2.0;
+        double height = bounds.getHeight() * 2.0;
         BufferedImage template = new BufferedImage((int) width, (int) height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = (Graphics2D) template.getGraphics();
         
